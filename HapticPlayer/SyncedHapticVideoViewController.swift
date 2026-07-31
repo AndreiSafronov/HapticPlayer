@@ -83,7 +83,7 @@ final class SyncedHapticVideoViewController: UIViewController {
             addChild(avController)
             view.addSubview(avController.view)
             avController.didMove(toParent: self)
-            
+            avController.player?.play()
             NSLayoutConstraint.activate([
                 avController.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
                 avController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
