@@ -1,4 +1,51 @@
+name: Build HapticPlayer (.ipa)
+on: 
+  workflow_dispatch:
+  push:
+    branches: [ master, main ]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Select Xcode 16
         run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode_16.app || true
-        - name: Clean Output
-          run: rm -rf build Payload HapticPlayer.ipa
+
+      - name: Clean Output
+        run: rm -rf build Payload HapticPlayer.ipa
+
+      - name: Create Structure
+        run: mkdir -p Payload
+
+      - name: Compile App Binary
+        run: |
+          xcodebuild build \
+            -project HapticPlayer.xcodeproj \
+            -scheme HapticPlayer \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            ENABLE_PREVIEWS=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Package Application Bundle
+        run: |
+          cp -r build/Build/Products/Release-iphoneos/HapticPlayer.app Payload/
+          zip -r HapticPlayer.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HapticPlayer-IPA
+          path: HapticPlayer.ipa
