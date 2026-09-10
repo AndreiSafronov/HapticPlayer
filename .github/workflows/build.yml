@@ -12,12 +12,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.app || sudo xcode-select -s /Applications/Xcode_16.0.app || true
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Clean Derived Data & Payload
+        run: rm -rf build Payload HapticPlayer.ipa
 
       - name: Create Structure
         run: mkdir -p Payload
 
       - name: Compile App Binary
+        env:
+          IB_TOOL_ALLOW_PLATFORM_MISMATCH: "1"
         run: |
           xcodebuild build \
             -project HapticPlayer.xcodeproj \
@@ -26,6 +31,7 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
+            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="-" \
