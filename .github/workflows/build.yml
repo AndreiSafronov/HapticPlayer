@@ -1,18 +1,4 @@
       - name: Select Xcode 16
         run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode_16.app || true
-
--     - name: Safely Remove Storyboards
--       run: |
--         gem install xcodeproj
--         ruby -r xcodeproj -e "
--         proj = Xcodeproj::Project.open('HapticPlayer.xcodeproj')
--         proj.targets.each do |t|
--           t.resources_build_phase.files.to_a.each do |f|
--             f.remove_from_project if f.display_name.to_s.include?('.storyboard')
--           end
--         end
--         proj.save
--         "
--
       - name: Clean Output
         run: rm -rf build Payload HapticPlayer.ipa
