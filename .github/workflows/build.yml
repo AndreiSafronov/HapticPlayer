@@ -14,6 +14,21 @@ jobs:
       - name: Select Xcode 16
         run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode_16.app || true
 
+      - name: Remove Unused Storyboards (Bypass ibtool)
+        run: |
+          python3 -c '
+          with open("HapticPlayer.xcodeproj/project.pbxproj", "r") as f:
+              lines = f.readlines()
+          with open("HapticPlayer.xcodeproj/project.pbxproj", "w") as f:
+              for line in lines:
+                  if "storyboard" not in line.lower():
+                      f.write(line)
+          '
+          if [ -f "HapticPlayer/Info.plist" ]; then
+            plutil -remove UIMainStoryboardFile HapticPlayer/Info.plist || true
+            plutil -remove UILaunchStoryboardName HapticPlayer/Info.plist || true
+          fi
+
       - name: Clean Derived Data & Payload
         run: rm -rf build Payload HapticPlayer.ipa
 
@@ -21,15 +36,12 @@ jobs:
         run: mkdir -p Payload
 
       - name: Compile App Binary
-        env:
-          IB_TOOL_ALLOW_PLATFORM_MISMATCH: "1"
         run: |
           xcodebuild build \
             -project HapticPlayer.xcodeproj \
             -scheme HapticPlayer \
             -configuration Release \
             -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             IPHONEOS_DEPLOYMENT_TARGET=16.2 \
             CODE_SIGNING_ALLOWED=YES \
