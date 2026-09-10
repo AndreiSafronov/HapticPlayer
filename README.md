@@ -12,15 +12,13 @@ I walk through working out how apple made there haptic F1 trailer
 
  [![Watch the video](https://img.youtube.com/vi/g6TUiQzcwac/maxresdefault.jpg)](https://youtu.be/g6TUiQzcwac)
 
-
-## 🎥 Watch the video: How I built this haptic player 
+## 🎥 Watch the video: How I built this haptic player
 
 I walk through the entire approach — parsing `.ahap`, syncing to `AVPlayer`, drift correction, and edge cases.
 
 **▶️ Watch here:** **[https://youtu.be/MguJGtUWqa0](https://youtu.be/MguJGtUWqa0)**
 
  [![Watch the video](https://img.youtube.com/vi/MguJGtUWqa0/maxresdefault.jpg)](https://youtu.be/MguJGtUWqa0)
-
 
 ---
 
@@ -96,16 +94,10 @@ HapticTransient = tap
 HapticContinuous + EventDuration = rumble
 All times in seconds; intensity/sharpness in 0…1.
 
-# File Creation. 
+# File Creation.
 
-I created the Haptic file in something called CuePoint, its not build for this but worked really well. I wrote some php to convert my output .txt to the needed json structure. Your millage may be different. 
-
-  
+I created the Haptic file in something called CuePoint, its not build for this but worked really well. I wrote some php to convert my output .txt to the needed json structure. Your millage may be different.
 
 More info is needed here but it is a baseline, hope you enjoy.
 
-
-
-
-Thomas Dye 
-
+Thomas Dye

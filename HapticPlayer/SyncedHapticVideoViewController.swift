@@ -5,8 +5,6 @@
 //  Created by Thomas Dye on 26/08/2025.
 //
 
-
-
 import UIKit
 import AVKit
 import CoreHaptics
@@ -15,13 +13,13 @@ final class SyncedHapticVideoViewController: UIViewController {
 
     enum HapticSource {
         case remoteURL(URL)
-        case bundled(name: String) // without ".ahap"
+        case bundled(name: String) // resource name, with or without extension
     }
 
     // MARK: - Public API
 
     init(videoURL: HapticSource, haptic: HapticSource) {
-        self.videoURL = videoURL
+        self.videoSource = videoURL
         self.hapticSource = haptic
         super.init(nibName: nil, bundle: nil)
     }
@@ -30,11 +28,11 @@ final class SyncedHapticVideoViewController: UIViewController {
 
     // MARK: - Private
 
-    private let videoURL: HapticSource
+    private let videoSource: HapticSource
     private let hapticSource: HapticSource
 
     private let avController = AVPlayerViewController()
-    private var player: AVPlayer!
+    private var player: AVPlayer?
     private var timeObserver: Any?
 
     private var engine: CHHapticEngine?
@@ -43,11 +41,10 @@ final class SyncedHapticVideoViewController: UIViewController {
 
     private var isPrepared = false
     private var hasStartedHaptics = false
+    private var didTeardown = false
 
     private var kvoAdded_timeControlStatus = false
-    private var kvoAdded_itemStatus = false
 
-    // Re-pin cadence (seconds) for gentle drift correction
     private let repinInterval: Double = 0.3
     private var lastRepinAt: CFTimeInterval = 0
 
@@ -57,9 +54,8 @@ final class SyncedHapticVideoViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .black
 
-        setupVideo()
         setupHapticsEngine()
-        prepareHapticsAndVideo()
+        setupVideo()
     }
 
     deinit { teardown() }
@@ -72,61 +68,64 @@ final class SyncedHapticVideoViewController: UIViewController {
     // MARK: - Setup
 
     private func setupVideo() {
-        loadVideoURL(hapticSource: videoURL) { [weak self] data in
-            guard let self = self else { return }
-            guard let data = data else { print("AHAP: failed to download/load data"); return }
-            player = AVPlayer(url: data)
-            avController.player = player
-            avController.exitsFullScreenWhenPlaybackEnds = true
-            avController.view.translatesAutoresizingMaskIntoConstraints = false
-            
-            addChild(avController)
-            view.addSubview(avController.view)
-            avController.didMove(toParent: self)
-            avController.player?.play()
-            NSLayoutConstraint.activate([
-                avController.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-                avController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                avController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                avController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-            ])
-            
-            // Mirror AVPlayerViewController controls
-            player.addObserver(self, forKeyPath: "timeControlStatus", options: [.new, .old], context: nil)
-            kvoAdded_timeControlStatus = true
-            
-            player.addObserver(self, forKeyPath: "currentItem.status", options: [.new], context: nil)
-            kvoAdded_itemStatus = true
-            
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(itemDidPlayToEnd),
-                name: .AVPlayerItemDidPlayToEndTime,
-                object: nil
-            )
-            
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(timeJumped),
-                name: .AVPlayerItemTimeJumped,
-                object: player.currentItem
-            )
-            
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(playbackStalled),
-                name: .AVPlayerItemPlaybackStalled,
-                object: player.currentItem
-            )
-            
-            // Gentle periodic re-pin
-            timeObserver = player.addPeriodicTimeObserver(
-                forInterval: CMTime(seconds: 0.1, preferredTimescale: 600),
-                queue: .main
-            ) { [weak self] _ in
-                self?.periodicRepinIfNeeded()
-            }
+        guard let url = resolveVideoURL() else {
+            print("Video: failed to resolve URL")
+            showCenteredMessage("Couldn’t load video")
+            return
         }
+
+        let player = AVPlayer(url: url)
+        self.player = player
+
+        avController.player = player
+        avController.exitsFullScreenWhenPlaybackEnds = true
+        avController.view.translatesAutoresizingMaskIntoConstraints = false
+
+        addChild(avController)
+        view.addSubview(avController.view)
+        avController.didMove(toParent: self)
+
+        NSLayoutConstraint.activate([
+            avController.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            avController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            avController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            avController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+
+        player.addObserver(self, forKeyPath: #keyPath(AVPlayer.timeControlStatus), options: [.new, .old], context: nil)
+        kvoAdded_timeControlStatus = true
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(itemDidPlayToEnd),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: player.currentItem
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(timeJumped),
+            name: .AVPlayerItemTimeJumped,
+            object: player.currentItem
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playbackStalled),
+            name: .AVPlayerItemPlaybackStalled,
+            object: player.currentItem
+        )
+
+        timeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.1, preferredTimescale: 600),
+            queue: .main
+        ) { [weak self] _ in
+            self?.periodicRepinIfNeeded()
+        }
+
+        player.currentItem?.preferredForwardBufferDuration = 1.5
+        prepareHapticsPattern()
+        player.play()
     }
 
     private func setupHapticsEngine() {
@@ -151,74 +150,72 @@ final class SyncedHapticVideoViewController: UIViewController {
         }
     }
 
-    private func prepareHapticsAndVideo() {
-        player.currentItem?.preferredForwardBufferDuration = 1.5
-        prepareHapticsPattern()
-    }
-
-    private func loadAHAPData(hapticSource:HapticSource, completion: @escaping (Data?) -> Void) {
-        switch hapticSource {
+    private func resolveVideoURL() -> URL? {
+        switch videoSource {
         case .bundled(let name):
-            guard let url = Bundle.main.url(forResource: name, withExtension: "ahap"),
-                  let data = try? Data(contentsOf: url) else {
-                completion(nil); return
-            }
-            completion(data)
-
+            return Self.bundledURL(name: name, extensions: ["mov", "mp4", "m4v"])
         case .remoteURL(let url):
-            URLSession.shared.dataTask(with: url) { data, _, _ in
-                completion(data)
-            }.resume()
+            return url
         }
     }
-    private func loadVideoURL(hapticSource:HapticSource, completion: @escaping (URL?) -> Void) {
+
+    private func resolveHapticURL() -> URL? {
         switch hapticSource {
         case .bundled(let name):
-            guard let url = Bundle.main.url(forResource: name, withExtension: "mov"),
-                  let data = try? Data(contentsOf: url) else {
-                completion(nil); return
-            }
-            completion(url)
-
+            return Self.bundledURL(name: name, extensions: ["ahap"])
         case .remoteURL(let url):
-            completion(url)
+            return url
         }
+    }
+
+    private static func bundledURL(name: String, extensions: [String]) -> URL? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let ns = trimmed as NSString
+        let ext = ns.pathExtension
+        let base = ext.isEmpty ? trimmed : ns.deletingPathExtension
+
+        if !ext.isEmpty, let url = Bundle.main.url(forResource: base, withExtension: ext) {
+            return url
+        }
+
+        for candidate in extensions {
+            if let url = Bundle.main.url(forResource: base, withExtension: candidate) {
+                return url
+            }
+        }
+
+        return Bundle.main.url(forResource: trimmed, withExtension: nil)
     }
 
     private func prepareHapticsPattern() {
         guard supportsHaptics else { return }
+        guard let url = resolveHapticURL() else {
+            print("AHAP: missing file")
+            return
+        }
 
-        loadAHAPData(hapticSource: hapticSource) { [weak self] data in
-            guard let self = self else { return }
-            guard let data = data else { print("AHAP: failed to download/load data"); return }
+        do {
+            try engine?.start()
+            let pattern = try CHHapticPattern(contentsOf: url)
+            hapticPlayer = try engine?.makeAdvancedPlayer(with: pattern)
+            hasStartedHaptics = false
+            isPrepared = true
+            print("AHAP: prepared")
 
-            do {
-                guard let dict = try JSONSerialization.jsonObject(with: data) as? [CHHapticPattern.Key: Any] else {
-                    print("AHAP: invalid JSON structure"); return
-                }
-
-                DispatchQueue.main.async {
-                    do {
-                        try self.engine?.start()
-                        let pattern = try CHHapticPattern(dictionary: dict)
-                        self.hapticPlayer = try self.engine?.makeAdvancedPlayer(with: pattern)
-                        self.hasStartedHaptics = false
-                        self.isPrepared = true
-                        print("AHAP: prepared")
-                    } catch {
-                        print("AHAP: prepare error -> \(error)")
-                    }
-                }
-            } catch {
-                print("AHAP: JSON error -> \(error)")
+            if player?.timeControlStatus == .playing {
+                repinHaptics(to: videoTimeSeconds())
             }
+        } catch {
+            print("AHAP: prepare error -> \(error)")
         }
     }
 
     // MARK: - Sync helpers
 
     private func videoTimeSeconds() -> Double {
-        guard let item = player.currentItem else { return 0 }
+        guard let item = player?.currentItem else { return 0 }
         let t = item.currentTime().seconds
         return t.isFinite ? t : 0
     }
@@ -231,7 +228,7 @@ final class SyncedHapticVideoViewController: UIViewController {
             if !hasStartedHaptics {
                 try hp.start(atTime: 0)
                 hasStartedHaptics = true
-            } else if player.timeControlStatus == .playing {
+            } else if player?.timeControlStatus == .playing {
                 try hp.resume(atTime: 0)
             }
         } catch {
@@ -241,7 +238,7 @@ final class SyncedHapticVideoViewController: UIViewController {
 
     private func periodicRepinIfNeeded() {
         guard supportsHaptics,
-              player.timeControlStatus == .playing,
+              player?.timeControlStatus == .playing,
               hapticPlayer != nil else { return }
 
         let now = CACurrentMediaTime()
@@ -258,32 +255,30 @@ final class SyncedHapticVideoViewController: UIViewController {
     }
 
     @objc private func timeJumped() {
-        // Fired on user scrubs/seeks/skip
         repinHaptics(to: videoTimeSeconds())
     }
 
     @objc private func playbackStalled() {
-        // Pause haptics so they don't drift ahead
         guard let hp = hapticPlayer else { return }
         do { try hp.pause(atTime: 0) } catch { }
     }
 
-    // Mirror AVPlayerViewController built-in controls via KVO
     override func observeValue(forKeyPath keyPath: String?,
-                               of object: Any?, change: [NSKeyValueChangeKey : Any]?,
+                               of object: Any?,
+                               change: [NSKeyValueChangeKey: Any]?,
                                context: UnsafeMutableRawPointer?) {
 
-        if keyPath == "timeControlStatus" {
-            switch player.timeControlStatus {
+        if keyPath == #keyPath(AVPlayer.timeControlStatus) {
+            switch player?.timeControlStatus {
             case .playing:
                 repinHaptics(to: videoTimeSeconds())
             case .paused, .waitingToPlayAtSpecifiedRate:
                 if let hp = hapticPlayer { try? hp.pause(atTime: 0) }
-            @unknown default:
+            default:
                 break
             }
-        } else if keyPath == "currentItem.status" {
-            // Handle ready/failed if you want
+        } else {
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
     }
 
@@ -296,23 +291,39 @@ final class SyncedHapticVideoViewController: UIViewController {
     // MARK: - Teardown
 
     private func teardown() {
-        if let timeObserver { player.removeTimeObserver(timeObserver) }
+        guard !didTeardown else { return }
+        didTeardown = true
+
+        if let timeObserver, let player {
+            player.removeTimeObserver(timeObserver)
+        }
         timeObserver = nil
 
         NotificationCenter.default.removeObserver(self)
 
-        if kvoAdded_timeControlStatus {
-            player.removeObserver(self, forKeyPath: "timeControlStatus")
+        if kvoAdded_timeControlStatus, let player {
+            player.removeObserver(self, forKeyPath: #keyPath(AVPlayer.timeControlStatus))
             kvoAdded_timeControlStatus = false
-        }
-        if kvoAdded_itemStatus {
-            player.removeObserver(self, forKeyPath: "currentItem.status")
-            kvoAdded_itemStatus = false
         }
 
         stopHapticsAndResetFlag()
         try? engine?.stop()
         engine = nil
         hapticPlayer = nil
+        player?.pause()
+        player = nil
+    }
+
+    private func showCenteredMessage(_ text: String) {
+        let label = UILabel()
+        label.text = text
+        label.textColor = .white
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
     }
 }
