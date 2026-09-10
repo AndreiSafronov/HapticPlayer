@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 import UniformTypeIdentifiers
 import AVKit
 import UIKit
@@ -630,7 +631,6 @@ private struct LiquidGlassContainer<Content: View>: View {
 
 private extension View {
 
-    @ViewBuilder
     func liquidGlass<S: Shape>(
         in shape: S,
         interactive: Bool = true,
@@ -641,7 +641,7 @@ private extension View {
         var glass: Glass = .regular
 
         if prominent {
-            glass = .regular.tint(.white)
+            glass = glass.tint(.white)
         }
 
         if let tint {
@@ -652,24 +652,21 @@ private extension View {
             glass = glass.interactive()
         }
 
-        self
-            .glassEffect(
-                glass,
-                in: shape
-            )
+        return self.glassEffect(
+            glass,
+            in: shape
+        )
     }
 
 
-    @ViewBuilder
     func liquidGlassID<ID: Hashable>(
         _ id: ID,
         in namespace: Namespace.ID
     ) -> some View {
 
-        self
-            .glassEffectID(
-                id,
-                in: namespace
-            )
+        return self.glassEffectID(
+            id,
+            in: namespace
+        )
     }
 }

@@ -307,7 +307,7 @@ final class SyncedHapticVideoViewController: UIViewController {
         }
 
         stopHapticsAndResetFlag()
-        try? engine?.stop()
+        engine?.stop()
         engine = nil
         hapticPlayer = nil
         player?.pause()
