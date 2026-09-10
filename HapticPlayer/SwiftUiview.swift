@@ -609,22 +609,27 @@ private struct LiquidBackgroundCanvas: View {
     }
 }
 
-// MARK: - Liquid Glass helpers (iOS 26, material fallback below)
+// MARK: - Native Liquid Glass
 
 private struct LiquidGlassContainer<Content: View>: View {
+
     var spacing: CGFloat = 20
-    @ViewBuilder var content: () -> Content
+
+    @ViewBuilder
+    var content: () -> Content
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) { content() }
-        } else {
+        GlassEffectContainer(spacing: spacing) {
             content()
         }
     }
 }
 
+
+// MARK: - Liquid Glass Modifiers
+
 private extension View {
+
     @ViewBuilder
     func liquidGlass<S: Shape>(
         in shape: S,
@@ -632,36 +637,39 @@ private extension View {
         prominent: Bool = false,
         tint: Color? = nil
     ) -> some View {
-        if #available(iOS 26.0, *) {
-            modifier(LiquidGlassFX(shape: shape, interactive: interactive, prominent: prominent, tint: tint))
-        } else {
-            self
-                .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.stroke(Color.white.opacity(0.16), lineWidth: 0.8))
+
+        var glass: Glass = .regular
+
+        if prominent {
+            glass = .regular.tint(.white)
         }
+
+        if let tint {
+            glass = glass.tint(tint)
+        }
+
+        if interactive {
+            glass = glass.interactive()
+        }
+
+        self
+            .glassEffect(
+                glass,
+                in: shape
+            )
     }
+
 
     @ViewBuilder
-    func liquidGlassID<ID: Hashable>(_ id: ID, in namespace: Namespace.ID) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffectID(id, in: namespace)
-        } else {
-            self
-        }
-    }
-}
+    func liquidGlassID<ID: Hashable>(
+        _ id: ID,
+        in namespace: Namespace.ID
+    ) -> some View {
 
-@available(iOS 26.0, *)
-private struct LiquidGlassFX<S: Shape>: ViewModifier {
-    var shape: S
-    var interactive: Bool
-    var prominent: Bool
-    var tint: Color?
-
-    func body(content: Content) -> some View {
-        var glass: Glass = prominent ? .regular.tint(.white) : .regular
-        if let tint { glass = glass.tint(tint) }
-        if interactive { glass = glass.interactive() }
-        return content.glassEffect(glass, in: shape)
+        self
+            .glassEffectID(
+                id,
+                in: namespace
+            )
     }
 }
