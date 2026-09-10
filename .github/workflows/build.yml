@@ -1,11 +1,37 @@
-name: Build iOS App
-on: [push, workflow_dispatch]
+name: Build HapticPlayer (.ipa)
+on: 
+  workflow_dispatch: # Allows you to manually trigger the build with a button click
+
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14 # Uses Apple Silicon runners for fast compilation
     steps:
-      - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.0.app
-      - name: Build IPA
-        run: xcodebuild -project HapticPlayer.xcodeproj -scheme HapticPlayer -archivePath HapticPlayer.xcarchive archive
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Select Latest Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Setup Packaging Environment
+        run: mkdir -p Payload
+
+      - name: Build Application Payload
+        run: |
+          xcodebuild clean build \
+            -project HapticPlayer.xcodeproj \
+            -scheme HapticPlayer \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Package App Package (.ipa)
+        run: |
+          mv build/Release-iphoneos/HapticPlayer.app Payload/
+          zip -r HapticPlayer.ipa Payload
+
+      - name: Upload Finished Build Artifact
+        uses: actions/artifacts/upload-artifact@v4
+        with:
+          name: HapticPlayer-App
+          path: HapticPlayer.ipa
