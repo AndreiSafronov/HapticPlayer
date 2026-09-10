@@ -1,3 +1,23 @@
+name: Build HapticPlayer (.ipa)
+
+on: 
+  workflow_dispatch:
+  push:
+    branches: [ master, main ]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Clean Output
+        run: rm -rf build Payload HapticPlayer.ipa
+
       - name: Compile and Archive App
         run: |
           xcodebuild archive \
