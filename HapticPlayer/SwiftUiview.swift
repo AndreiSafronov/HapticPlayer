@@ -107,7 +107,6 @@ struct HapticClipGridView: View {
     @State private var selectedClip: HapticClip?
     @State private var showAddSheet = false
 
-    // Adjusted for 16:9 thumbnail sizing
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16)]
 
     var body: some View {
@@ -174,7 +173,6 @@ private struct VideoThumbnailCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Thumbnail & Time Badge Container
             ZStack(alignment: .bottomTrailing) {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color.white.opacity(0.05))
@@ -196,7 +194,6 @@ private struct VideoThumbnailCard: View {
                             .stroke(LinearGradient(colors: [.white.opacity(0.3), .white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
                     )
                 
-                // Duration Badge
                 Text(durationString)
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
@@ -207,7 +204,6 @@ private struct VideoThumbnailCard: View {
             }
             .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
             
-            // Name underneath
             Text(clip.title)
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
@@ -228,7 +224,6 @@ private struct VideoThumbnailCard: View {
         let asset = AVURLAsset(url: url)
         
         do {
-            // Get Duration
             let duration = try await asset.load(.duration)
             let seconds = Int(CMTimeGetSeconds(duration))
             if seconds > 0 {
@@ -239,17 +234,16 @@ private struct VideoThumbnailCard: View {
                 durationString = "0:00"
             }
             
-            // Get Image Frame
             let generator = AVAssetImageGenerator(asset: asset)
             generator.appliesPreferredTrackTransform = true
-            generator.maximumSize = CGSize(width: 400, height: 400) // Keep memory low
+            generator.maximumSize = CGSize(width: 400, height: 400)
             
             let cgImage = try await generator.image(at: .zero).image
             await MainActor.run {
                 self.thumbnail = UIImage(cgImage: cgImage)
             }
         } catch {
-            print("Failed to load thumbnail for \(url.lastPathComponent): \(error.localizedDescription)")
+            print("Thumbnail load failed: \(error.localizedDescription)")
         }
     }
 }
