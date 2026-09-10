@@ -15,13 +15,14 @@ jobs:
       - name: Create Structure
         run: mkdir -p Payload
 
-      - name: Compile App Archive
+      - name: Compile App Binary
         run: |
-          xcodebuild archive \
+          xcodebuild build \
             -project HapticPlayer.xcodeproj \
             -scheme HapticPlayer \
-            -destination 'generic/platform=iOS' \
-            -archivePath HapticPlayer.xcarchive \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -29,7 +30,7 @@ jobs:
 
       - name: Package Application Bundle
         run: |
-          cp -r HapticPlayer.xcarchive/Products/Applications/HapticPlayer.app Payload/
+          cp -r build/Build/Products/Release-iphoneos/HapticPlayer.app Payload/
           zip -r HapticPlayer.ipa Payload
 
       - name: Upload IPAs Artifacts
