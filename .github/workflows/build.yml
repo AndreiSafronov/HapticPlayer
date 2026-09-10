@@ -6,30 +6,15 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode_16.app || true
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
-      - name: Remove Unused Storyboards (Bypass ibtool)
-        run: |
-          python3 -c '
-          with open("HapticPlayer.xcodeproj/project.pbxproj", "r") as f:
-              lines = f.readlines()
-          with open("HapticPlayer.xcodeproj/project.pbxproj", "w") as f:
-              for line in lines:
-                  if "storyboard" not in line.lower():
-                      f.write(line)
-          '
-          if [ -f "HapticPlayer/Info.plist" ]; then
-            plutil -remove UIMainStoryboardFile HapticPlayer/Info.plist || true
-            plutil -remove UILaunchStoryboardName HapticPlayer/Info.plist || true
-          fi
-
-      - name: Clean Derived Data & Payload
+      - name: Clean Directory
         run: rm -rf build Payload HapticPlayer.ipa
 
       - name: Create Structure
@@ -42,6 +27,7 @@ jobs:
             -scheme HapticPlayer \
             -configuration Release \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             IPHONEOS_DEPLOYMENT_TARGET=16.2 \
             CODE_SIGNING_ALLOWED=YES \
